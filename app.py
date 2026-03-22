@@ -57,6 +57,7 @@ for c_type in coffee_types:
         
         summary_data.append({
             "የቡና አይነት": c_type,
+            "C-Market (¢)": live_c, # አዲሱ ኮለም እዚህ ተጨመረ
             "ECTA (¢)": round(ecta_val, 2),
             "Local Purchase Price (¢)": pur_usc,
             "ECTA vs Local Purchase": ecta_vs_pur,
@@ -72,6 +73,7 @@ def color_diff(val):
 
 # ቁጥሮቹን በ2 ዴሲማል ፎርማት ማድረግ
 formatted_df = summary_df.style.format({
+    "C-Market (¢)": "{:.2f}",
     "ECTA (¢)": "{:.2f}",
     "Local Purchase Price (¢)": "{:.2f}",
     "ECTA vs Local Purchase": "{:.2f}",
@@ -105,6 +107,6 @@ if min_col_g in df.columns and pur_col_g in df.columns:
         xaxis_title="ቀን", 
         yaxis_title="US Cents/lb", 
         template="plotly_white",
-        yaxis=dict(tickformat=".2f") # በግራፉ ዘንግ ላይ ያሉ ቁጥሮች በ2 ዴሲማል
+        yaxis=dict(tickformat=".2f")
     )
     st.plotly_chart(fig, use_container_width=True)
