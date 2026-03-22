@@ -26,7 +26,7 @@ st.title("☕ የተቀናጀ የቡና ዋጋ ንጽጽር (USD Analysis)")
 
 # የጎን ሳጥን (Sidebar) ለምንዛሬ
 st.sidebar.header("የምንዛሬ ማስተካከያ")
-usd_to_etb = st.sidebar.number_input("1 USD በስንት ብር? (Exchange Rate)", value=130.0, step=0.1)
+usd_to_etb = st.sidebar.number_input("1 USD በስንት ብር? (Exchange Rate)", value=155.0, step=0.1)
 
 # ዳታውን መጫን
 df = load_data()
