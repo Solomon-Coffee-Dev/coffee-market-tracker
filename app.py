@@ -1,76 +1,77 @@
 import streamlit as st
-import yfinance as yf
 import pandas as pd
+import yfinance as yf
 import plotly.graph_objects as go
 
-# 1. የGoogle Sheet መረጃ (የራስህን ID እዚህ አስገባ)
-SHEET_ID = '1n4O2iorn6mRcJfsIJHowpGjz3YjA0ZW42yzt2gLCJ5A' 
-SHEET_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
+# 1. መረጃውን ከGoogle Sheet የማምጫ ሊንክ
+SHEET_ID = st.secrets["SHEET_ID"]
+url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv"
 
 @st.cache_data(ttl=600)
-def load_all_data():
-    c_market = yf.Ticker("KC=F").history(period="1mo")
-    eth_data = pd.read_csv(SHEET_URL)
-    eth_data['Date'] = pd.to_datetime(eth_data['Date'])
-    return c_market, eth_data
+def load_data():
+    return pd.read_csv(url)
 
-st.set_page_config(page_title="Ethiopia Coffee Spread Tracker", layout="wide")
-st.title("☕ የተሟላ የኢትዮጵያ ቡና ገበያ እና የSpread ትንተና")
+# 2. የC-Market ዋጋን ከ Yahoo Finance ማምጣት
+def get_c_market():
+    try:
+        coffee = yf.Ticker("KC=F")
+        price = coffee.history(period="1d")['Close'].iloc[-1]
+        return round(price, 2)
+    except:
+        return 185.0 # መረጃው ካልመጣ እንደ አማካኝ ይውሰድ
 
-try:
-    c_df, eth_df = load_all_data()
-    curr_c = c_df['Close'].iloc[-1]
-    last_row = eth_df.iloc[-1]
+# ገጹን ማዘጋጀት
+st.set_page_config(page_title="Coffee Market Analysis", layout="wide")
+st.title("☕ የተቀናጀ የቡና ዋጋ ንጽጽር (USD Analysis)")
 
-    # --- ክፍል 1፡ የወቅቱ ዋጋዎች (Current Prices) ---
-    st.subheader("📊 የወቅቱ ዝቅተኛ መነሻ ዋጋዎች")
-    # ዋናዎቹ 4
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Global C-Market", f"{curr_c:.2f}¢")
-    m2.metric("Sidamo G2", f"{last_row['ETH_Min_Sidamo 2']:.2f}¢")
-    m3.metric("Yirgachefe G2", f"{last_row['ETH_Min_Yirg 2']:.2f}¢")
-    m4.metric("Limmu G2", f"{last_row['ETH_Min_Limmu 2']:.2f}¢")
+# የጎን ሳጥን (Sidebar) ለምንዛሬ
+st.sidebar.header("የምንዛሬ ማስተካከያ")
+usd_to_etb = st.sidebar.number_input("1 USD በስንት ብር? (Exchange Rate)", value=130.0, step=0.1)
 
-    # --- ክፍል 2፡ የSpread (ልዩነት) ትንተና ---
-    st.divider()
-    st.subheader("⚖️ የSpread ትንተና (የሀገር ውስጥ ዋጋ - የአለም ገበያ)")
-    
-    # 10ሩም የቡና አይነቶች ዝርዝር
-    all_coffee = {
-        'ETH_Min_Sidamo 2': 'Sidamo G2',
-        'ETH_Min_Yirg 2': 'Yirgachefe G2',
-        'ETH_Min_Limmu 2': 'Limmu G2',
-        'ETH_Min_Sidamo 4': 'Sidamo G4',
-        'ETH_Min_Lekempti 4': 'Lekempti G4',
-        'ETH_Min_Harar 4': 'Harar G4',
-        'ETH_Min_Djimma 4': 'Djimma G4',
-        'ETH_Min_Lekempti 5': 'Lekempti G5',
-        'ETH_Min_Harar 5': 'Harar G5',
-        'ETH_Min_Djimma 5': 'Djimma G5'
-    }
+# ዳታውን መጫን
+df = load_data()
+live_c = get_c_market()
 
-    # Spread ለማሳየት በ3 ረድፍ ከፋፍለን እናስቀምጣቸው
-    s_cols = st.columns(4)
-    idx = 0
-    for col_name, label in all_coffee.items():
-        if col_name in eth_df.columns:
-            spread_val = last_row[col_name] - curr_c
-            s_cols[idx % 4].metric(f"{label} Spread", f"{spread_val:.2f}¢", delta=f"{spread_val:.1f}")
-            idx += 1
+col1, col2 = st.columns(2)
+with col1:
+    st.metric("የዛሬ ኒውዮርክ C-Market", f"${live_c} /lb")
+with col2:
+    st.info(f"የምንዛሬ ተመን፦ 1 USD = {usd_to_etb} ETB")
 
-    # --- ክፍል 3፡ የተቀናጀ ግራፍ ---
-    st.divider()
+# 3. የቡና አይነቶችን መምረጫ
+coffee_types = ["Sidamo 2", "Yirg 2", "Limmu 2", "Sidamo 4", "Lekempti 4", "Harar 4", "Djimma 4", "Lekempti 5", "Harar 5", "Djimma 5"]
+selected_type = st.selectbox("የቡና አይነት ይምረጡ", coffee_types)
+
+min_col = f"ETH_Min_{selected_type}"
+pur_col = f"Pur_{selected_type}"
+
+if min_col in df.columns and pur_col in df.columns:
+    # ⚠️ የመግዣ ዋጋን (ብር) ወደ ዶላር መቀየር (ETB / Exchange Rate)
+    # ማሳሰቢያ፡ ኒውዮርክ በ 'lb' ስለሆነ ብሩን ወደ USD ቀይረን በ 'lb' እናስቀምጠዋለን
+    df['Purchase_USD'] = df[pur_col] / usd_to_etb
+
+    # ንጽጽር ግራፍ (ሁሉም በ USD)
     fig = go.Figure()
-    # የአለም ገበያ መስመር
-    fig.add_trace(go.Scatter(x=c_df.index, y=c_df['Close'], name="C-Market", line=dict(width=4, color='black')))
-    
-    # የኢትዮጵያ ቡናዎች መስመር
-    for col_name, label in all_coffee.items():
-        if col_name in eth_df.columns:
-            fig.add_trace(go.Scatter(x=eth_df['Date'], y=eth_df[col_name], name=label))
+    # የኢትዮጵያ ዝቅተኛ ዋጋ (በ USD ነው ያለው)
+    fig.add_trace(go.Scatter(x=df['Date'], y=df[min_col], name='ECTA Minimum (USD)', line=dict(color='green', width=3)))
+    # ያንተ መግዣ ዋጋ (ወደ USD የተቀየረ)
+    fig.add_trace(go.Scatter(x=df['Date'], y=df['Purchase_USD'], name='Your Purchase (USD Equivalent)', line=dict(color='orange', width=3, dash='dot')))
+    # የኒውዮርክ ዋጋ (እንደ መስመር)
+    fig.add_hline(y=live_c, line_dash="dash", line_color="red", annotation_text="Today's C-Market")
 
-    fig.update_layout(height=600, hovermode="x unified", title="የ10ሩም የቡና አይነቶች የዋጋ ንጽጽር")
+    fig.update_layout(title=f"የ {selected_type} የዋጋ ንጽጽር በ USD", xaxis_title="ቀን", yaxis_title="ዋጋ በ USD / lb")
     st.plotly_chart(fig, use_container_width=True)
 
-except Exception as e:
-    st.error(f"ስህተት ተፈጥሯል! እባክህ በGoogle Sheet ላይ ያሉት የርዕስ ስሞች ከኮዱ ጋር አንድ አይነት መሆናቸውን አረጋግጥ። ዝርዝር፦ {e}")
+    # የትርፍ/ኪሳራ ግምት (Margin)
+    current_min = df[min_col].iloc[-1]
+    current_pur_usd = df['Purchase_USD'].iloc[-1]
+    margin = current_min - current_pur_usd
+    
+    st.subheader("የገበያ ትንተና (Current Snapshot)")
+    m1, m2, m3 = st.columns(3)
+    m1.metric("ዝቅተኛ ኤክስፖርት ዋጋ", f"${current_min}")
+    m2.metric("ያንተ መግዣ (በUSD)", f"${round(current_pur_usd, 2)}")
+    m3.metric("ልዩነት (Margin)", f"${round(margin, 2)}", delta=f"{round(margin, 2)}")
+
+else:
+    st.error("በሰንጠረዡ ላይ የኮለም ስሞች አልተገኙም። እባክህ የSheet ርዕሶችን አረጋግጥ።")
