@@ -48,30 +48,37 @@ for c_type in coffee_types:
         ecta_val = df[min_col].iloc[-1]
         pur_birr = df[pur_col].iloc[-1]
         
-        # ልወጣ
+        # ልወጣ እና ወደ 2 ዴሲማል መጠቅለል
         pur_usc = round((pur_birr / usd_to_etb) * 100, 2)
         
         # ልዩነቶች (Differentials)
-        ecta_vs_pur = round(ecta_val - pur_usc, 2) # ትርፍህን ያሳያል
-        ecta_vs_c = round(ecta_val - live_c, 2)   # የኢትዮጵያ ዋጋ ከዓለም ገበያ ያለውን ብልጫ ያሳያል
+        ecta_vs_pur = round(ecta_val - pur_usc, 2)
+        ecta_vs_c = round(ecta_val - live_c, 2)
         
         summary_data.append({
             "የቡና አይነት": c_type,
-            "ECTA (¢)": ecta_val,
-            "ያንተ መግዣ (¢)": pur_usc,
-            "ECTA vs Purchase": ecta_vs_pur,
+            "ECTA (¢)": round(ecta_val, 2),
+            "Local Purchase Price (¢)": pur_usc,
+            "ECTA vs Local Purchase": ecta_vs_pur,
             "ECTA vs C-Market": ecta_vs_c
         })
 
 summary_df = pd.DataFrame(summary_data)
 
-# ሰንጠረዡን በውበት ለማሳየት
+# ሰንጠረዡን በውበት እና በ2 ዴሲማል ለማሳየት
 def color_diff(val):
     color = 'green' if val > 0 else 'red'
     return f'color: {color}'
 
-st.dataframe(summary_df.style.applymap(color_diff, subset=['ECTA vs Purchase', 'ECTA vs C-Market']), 
-             use_container_width=True, hide_index=True)
+# ቁጥሮቹን በ2 ዴሲማል ፎርማት ማድረግ
+formatted_df = summary_df.style.format({
+    "ECTA (¢)": "{:.2f}",
+    "Local Purchase Price (¢)": "{:.2f}",
+    "ECTA vs Local Purchase": "{:.2f}",
+    "ECTA vs C-Market": "{:.2f}"
+}).applymap(color_diff, subset=['ECTA vs Local Purchase', 'ECTA vs C-Market'])
+
+st.dataframe(formatted_df, use_container_width=True, hide_index=True)
 
 st.divider()
 
@@ -84,12 +91,20 @@ pur_col_g = f"Pur_{selected_type}"
 
 if min_col_g in df.columns and pur_col_g in df.columns:
     df_plot = df.copy()
-    df_plot['Pur_USC'] = (df_plot[pur_col_g] / usd_to_etb) * 100
+    # ወደ USC መቀየር እና በ 2 ዴሲማል ማስቀመጥ
+    df_plot['Pur_USC'] = round((df_plot[pur_col_g] / usd_to_etb) * 100, 2)
+    df_plot['ECTA_Final'] = round(df_plot[min_col_g], 2)
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot[min_col_g], name='ECTA Min (¢)', line=dict(color='#2ecc71', width=3)))
-    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['Pur_USC'], name='Your Purchase (¢)', line=dict(color='#e67e22', width=3, dash='dot')))
-    fig.add_hline(y=live_c, line_dash="dash", line_color="#e74c3c", annotation_text="C-Market")
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['ECTA_Final'], name='ECTA Min (¢)', line=dict(color='#2ecc71', width=3)))
+    fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['Pur_USC'], name='Local Purchase (¢)', line=dict(color='#e67e22', width=3, dash='dot')))
+    fig.add_hline(y=live_c, line_dash="dash", line_color="#e74c3c", annotation_text=f"C-Market: {live_c}¢")
     
-    fig.update_layout(title=f"የ {selected_type} የዋጋ ታሪክ", xaxis_title="ቀን", yaxis_title="US Cents/lb", template="plotly_white")
+    fig.update_layout(
+        title=f"የ {selected_type} የዋጋ ታሪክ", 
+        xaxis_title="ቀን", 
+        yaxis_title="US Cents/lb", 
+        template="plotly_white",
+        yaxis=dict(tickformat=".2f") # በግራፉ ዘንግ ላይ ያሉ ቁጥሮች በ2 ዴሲማል
+    )
     st.plotly_chart(fig, use_container_width=True)
