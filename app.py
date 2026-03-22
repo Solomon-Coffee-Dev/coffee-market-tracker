@@ -27,7 +27,7 @@ st.title("☕ የቡና ገበያ የተቀናጀ ንጽጽር")
 
 # Sidebar
 st.sidebar.header("ማስተካከያ")
-usd_to_etb = st.sidebar.number_input("የምንዛሬ ተመን (USD/ETB)", value=130.0, step=0.1)
+usd_to_etb = st.sidebar.number_input("የምንዛሬ ተመን (USD/ETB)", value=155.0, step=0.1)
 
 df = load_data()
 live_c = get_c_market()
