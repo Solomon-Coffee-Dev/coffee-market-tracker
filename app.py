@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import plotly.graph_objects as go
+from io import BytesIO
 
 # 1. ዳታ ማምጫ ከGoogle Sheet
 SHEET_ID = st.secrets["SHEET_ID"]
@@ -83,33 +84,35 @@ if min_col_g in df.columns and pur_col_g in df.columns:
     fig.update_layout(title=f"የ {selected_type} የዋጋ ታሪክ", xaxis_title="ቀን", yaxis_title="US Cents/lb", hovermode="x unified", template="plotly_white")
     st.plotly_chart(fig, use_container_width=True)
 
-    # 5. የተሻሻለ የታሪካዊ መረጃ ሰንጠረዥ (C-Marketን የጨመረ)
-    st.subheader(f"📋 የ {selected_type} ዝርዝር የታሪክ ሰንጠረዥ (በ USC/lb)")
+    # 5. ዝርዝር የታሪክ ሰንጠረዥ ከዳውንሎድ ቁልፍ ጋር
+    st.subheader(f"📋 የ {selected_type} ዝርዝር የታሪክ ሰንጠረዥ")
     
-    # ዳታዎቹን ማዘጋጀት
     local_data = df_plot[['Date', min_col_g, 'Local_USC']].copy()
-    
-    # የ C-Market ታሪክን ከ Local ዳታ ጋር በቀን ማገናኘት (Merge)
     combined_historic = pd.merge(local_data, c_market_hist, on='Date', how='left')
-    
-    # ኮለሞችን በቅደም ተከተል ማስተካከል
     combined_historic = combined_historic[['Date', 'C-Market (¢)', min_col_g, 'Local_USC']]
     combined_historic.columns = ['ቀን', 'C-Market (¢)', 'ECTA Min (¢)', 'Local Purchase (¢)']
-    
-    # ልዩነቶችን ማስላት
     combined_historic['ECTA vs Local'] = combined_historic['ECTA Min (¢)'] - combined_historic['Local Purchase (¢)']
     combined_historic['ECTA vs C-Market'] = combined_historic['ECTA Min (¢)'] - combined_historic['C-Market (¢)']
-    
-    # በጊዜ ቅደም ተከተል (የቅርብ ጊዜው ከላይ እንዲሆን)
     combined_historic = combined_historic.sort_values(by='ቀን', ascending=False)
 
-    # ሰንጠረዡን ማሳየት (በ2 ደሲማል)
+    # 📥 የ Excel ዳውንሎድ ተግባር
+    def to_excel(df):
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='openpyxl') as writer:
+            df.to_excel(writer, index=False, sheet_name='Price_History')
+        return output.getvalue()
+
+    excel_data = to_excel(combined_historic)
+    st.download_button(
+        label="📥 Download as Excel",
+        data=excel_data,
+        file_name=f"{selected_type}_Price_History.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
     st.dataframe(combined_historic.style.format({
-        'C-Market (¢)': '{:.2f}',
-        'ECTA Min (¢)': '{:.2f}',
-        'Local Purchase (¢)': '{:.2f}',
-        'ECTA vs Local': '{:.2f}',
-        'ECTA vs C-Market': '{:.2f}'
+        'C-Market (¢)': '{:.2f}', 'ECTA Min (¢)': '{:.2f}', 'Local Purchase (¢)': '{:.2f}',
+        'ECTA vs Local': '{:.2f}', 'ECTA vs C-Market': '{:.2f}'
     }), use_container_width=True, hide_index=True)
 
 else:
