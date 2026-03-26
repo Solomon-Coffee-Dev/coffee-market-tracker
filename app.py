@@ -14,31 +14,37 @@ def load_data():
     df['Date'] = pd.to_datetime(df['Date']).dt.date
     return df
 
-# 2. የሲ-ማርኬት ታሪካዊ መረጃ ማምጫ
+# 2. የሲ-ማርኬት ዳታ ማምጫ (Safe Version)
 @st.cache_data(ttl=3600)
 def get_historic_c_market():
     try:
         coffee = yf.Ticker("KC=F")
         hist = coffee.history(period="3mo")
-        hist = hist.reset_index()
-        hist['Date'] = hist['Date'].dt.tz_localize(None).dt.date
-        hist = hist.rename(columns={'Close': 'C-Market (¢)'})
-        return hist[['Date', 'C-Market (¢)']]
+        if not hist.empty:
+            hist = hist.reset_index()
+            hist['Date'] = hist['Date'].dt.tz_localize(None).dt.date
+            hist = hist.rename(columns={'Close': 'C-Market (¢)'})
+            return hist[['Date', 'C-Market (¢)']]
+        return pd.DataFrame(columns=['Date', 'C-Market (¢)'])
     except:
         return pd.DataFrame(columns=['Date', 'C-Market (¢)'])
 
-st.set_page_config(page_title="Coffee Market Trend Analysis", layout="wide")
+st.set_page_config(page_title="Coffee Market Dashboard", layout="wide")
 st.title("☕ የቡና ገበያ የተቀናጀ ትንተና")
 
 # Sidebar
-st.sidebar.header("ማስተካከያ")
-usd_to_etb = st.sidebar.number_input("የምንዛሬ ተመን (USD/ETB)", value=155.0, step=0.1)
+usd_to_etb = st.sidebar.number_input("የዛሬ የምንዛሬ ተመን (USD/ETB)", value=130.0, step=0.1)
 
 df = load_data()
 c_market_hist = get_historic_c_market()
-live_c = round(c_market_hist['C-Market (¢)'].iloc[-1], 2) if not c_market_hist.empty else 0.0
 
-st.metric("የዛሬ ኒውዮርክ C-Market (Live)", f"{live_c} ¢/lb")
+# Live C-Market Price Metric
+if not c_market_hist.empty:
+    live_c = round(c_market_hist['C-Market (¢)'].iloc[-1], 2)
+    st.metric("የዛሬ ኒውዮርክ C-Market (Live)", f"{live_c} ¢/lb")
+else:
+    live_c = 0.0
+    st.warning("የኒውዮርክ C-Market መረጃ ለጊዜው አልተገኘም (ገበያ ዝግ ሊሆን ይችላል)።")
 
 # 3. የዕለቱ ማጠቃለያ ሰንጠረዥ
 st.subheader("📊 የ10ሩም የቡና አይነቶች የዛሬ ንጽጽር (¢/lb)")
@@ -55,8 +61,8 @@ for c_type in coffee_types:
             "የቡና አይነት": c_type,
             "C-Market (¢)": live_c,
             "ECTA (¢)": round(ecta_val, 2),
-            "Local Purchase (¢)": pur_usc,
-            "ECTA vs Local": round(ecta_val - pur_usc, 2),
+            "Local Purchase Price (¢)": pur_usc,
+            "ECTA vs Local Purchase": round(ecta_val - pur_usc, 2),
             "ECTA vs C-Market": round(ecta_val - live_c, 2)
         })
 
@@ -77,7 +83,9 @@ if min_col_g in df.columns and pur_col_g in df.columns:
     df_plot['Local_USC'] = (df_plot[pur_col_g] / usd_to_etb) * 100
     
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=c_market_hist['Date'], y=c_market_hist['C-Market (¢)'], name='NY C-Market', line=dict(color='#e74c3c', width=2)))
+    if not c_market_hist.empty:
+        fig.add_trace(go.Scatter(x=c_market_hist['Date'], y=c_market_hist['C-Market (¢)'], name='NY C-Market', line=dict(color='#e74c3c', width=2)))
+    
     fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot[min_col_g], name='ECTA Min (¢)', line=dict(color='#2ecc71', width=3)))
     fig.add_trace(go.Scatter(x=df_plot['Date'], y=df_plot['Local_USC'], name='Local Purchase (¢)', line=dict(color='#e67e22', width=3, dash='dot')))
     
@@ -96,10 +104,10 @@ if min_col_g in df.columns and pur_col_g in df.columns:
     combined_historic = combined_historic.sort_values(by='ቀን', ascending=False)
 
     # 📥 የ Excel ዳውንሎድ ተግባር
-    def to_excel(df):
+    def to_excel(df_to_dl):
         output = BytesIO()
         with pd.ExcelWriter(output, engine='openpyxl') as writer:
-            df.to_excel(writer, index=False, sheet_name='Price_History')
+            df_to_dl.to_excel(writer, index=False, sheet_name='Price_History')
         return output.getvalue()
 
     excel_data = to_excel(combined_historic)
@@ -114,6 +122,3 @@ if min_col_g in df.columns and pur_col_g in df.columns:
         'C-Market (¢)': '{:.2f}', 'ECTA Min (¢)': '{:.2f}', 'Local Purchase (¢)': '{:.2f}',
         'ECTA vs Local': '{:.2f}', 'ECTA vs C-Market': '{:.2f}'
     }), use_container_width=True, hide_index=True)
-
-else:
-    st.error("የተመረጠው የቡና አይነት መረጃ አልተገኘም።")
